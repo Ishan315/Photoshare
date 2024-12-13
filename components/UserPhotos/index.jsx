@@ -7,6 +7,8 @@ import CommentInput from "../CommentInput";
 import DeleteConfirmDialog from '../DeleteConfirmDialog';
 import PhotoUpload from "../PhotoUpload";
 import "./styles.css";
+import FavoriteIcon from '@mui/icons-material/Favorite';
+import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 
 function UserPhotos({ userId, advancedFeaturesEnabled, currentUser }) {
     const [photos, setPhotos] = useState([]);
@@ -18,6 +20,7 @@ function UserPhotos({ userId, advancedFeaturesEnabled, currentUser }) {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
     const [deleteType, setDeleteType] = useState(null); // 'photo' or 'comment'
+    const [favorites, setFavorites] = useState(new Set());
 
     useEffect(() => {
         console.log("Fetching user photos");
@@ -51,6 +54,22 @@ function UserPhotos({ userId, advancedFeaturesEnabled, currentUser }) {
         };
         checkOwnProfile();
     }, [userId]);
+
+    useEffect(() => {
+        const loadFavorites = async () => {
+            try {
+                const response = await axios.get('/favorites');
+                const favoriteIds = new Set(response.data.map(fav => fav.photo_id._id));
+                setFavorites(favoriteIds);
+            } catch (error) {
+                console.error('Error loading favorites:', error);
+            }
+        };
+        
+        if (currentUser) {
+            loadFavorites();
+        }
+    }, [currentUser]);
 
     const handlePhotoUploaded = (newPhoto) => {
         setPhotos(prevPhotos => [...prevPhotos, newPhoto]);
@@ -116,6 +135,30 @@ function UserPhotos({ userId, advancedFeaturesEnabled, currentUser }) {
         setItemToDelete(null);
         setDeleteType(null);
     };
+
+    const handleFavoriteToggle = async (photoId) => {
+        try {
+            if (favorites.has(photoId)) {
+                await axios.delete(`/favorites/remove/${photoId}`);
+                favorites.delete(photoId);
+            } else {
+                await axios.post(`/favorites/add/${photoId}`);
+                favorites.add(photoId);
+            }
+            setFavorites(new Set(favorites));
+        } catch (error) {
+            console.error('Error toggling favorite:', error);
+        }
+    };
+
+    const renderFavoriteButton = (photoId) => (
+        <IconButton
+            onClick={() => handleFavoriteToggle(photoId)}
+            color={favorites.has(photoId) ? "secondary" : "default"}
+        >
+            {favorites.has(photoId) ? <FavoriteIcon /> : <FavoriteBorderIcon />}
+        </IconButton>
+    );
 
     if (loading) {
         return <Typography variant="body1">Loading...</Typography>;
@@ -258,6 +301,7 @@ function UserPhotos({ userId, advancedFeaturesEnabled, currentUser }) {
                                     <DeleteIcon />
                                 </IconButton>
                             )}
+                            {currentUser && renderFavoriteButton(photo._id)}
                         </CardContent>
                     </Card>
                 ))}
@@ -351,6 +395,7 @@ function UserPhotos({ userId, advancedFeaturesEnabled, currentUser }) {
                                 <DeleteIcon />
                             </IconButton>
                         )}
+                        {currentUser && renderFavoriteButton(photo._id)}
                     </CardContent>
                 </Card>
                 {showUploadDialog && (
